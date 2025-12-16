@@ -34,6 +34,7 @@ export default function BottomNav() {
   const navItems = [
     { href: '/home', icon: '🏠', label: 'Home' },
     { href: '/talk', icon: '💬', label: 'Talk' },
+    { href: '/crisis', icon: '🆘', label: 'Crisis' },
     { href: '/patterns', icon: '🔍', label: 'Patterns' },
     { href: '/insights', icon: '💡', label: 'Insights', badge: hasNewInsights },
     { href: '/memories', icon: '🔖', label: 'Memories' },

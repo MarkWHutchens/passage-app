@@ -15,6 +15,7 @@ export interface Database {
           email: string
           name: string | null
           entry_point: string | null
+          country: string | null
           subscription_status: string
           subscription_id: string | null
           trial_ends_at: string | null
@@ -37,6 +38,7 @@ export interface Database {
           email?: string
           name?: string | null
           entry_point?: string | null
+          country?: string | null
           subscription_status?: string
           subscription_id?: string | null
           trial_ends_at?: string | null
@@ -167,6 +169,32 @@ export interface Database {
           last_seen_at?: string
           occurrence_count?: number
           is_active?: boolean
+        }
+      }
+      crisis_resources: {
+        Row: {
+          id: string
+          country_code: string
+          country_name: string
+          content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          country_code: string
+          country_name: string
+          content: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          country_code?: string
+          country_name?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
         }
       }
     }

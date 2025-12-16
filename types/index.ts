@@ -102,3 +102,36 @@ export interface ModelContext {
   messageLength: number;
   conversationDepth: number;
 }
+
+export interface CrisisContact {
+  name: string;
+  phone?: string;
+  text?: string;
+  email?: string;
+  hours: string;
+  website?: string;
+  description?: string;
+  spanish?: string;
+  languages?: string;
+}
+
+export interface CrisisResources {
+  mental_health?: CrisisContact[];
+  young_people?: CrisisContact[];
+  domestic_violence?: CrisisContact[];
+  sexual_assault?: CrisisContact[];
+  addiction?: CrisisContact[];
+  lgbtiq?: CrisisContact[];
+}
+
+export interface CrisisResource {
+  id: string;
+  country_code: string;
+  country_name: string;
+  emergency_number: string;
+  nhs_mental_health?: string;
+  primary_crisis_line: CrisisContact;
+  resources: CrisisResources;
+  created_at: string;
+  updated_at: string;
+}

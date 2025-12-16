@@ -87,14 +87,24 @@ export default function MessageTag({ messageId, existingTags = [], onTagAdded, i
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className={`p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors ${
-          hasTag ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'
+        className={`p-1.5 rounded-full transition-colors ${
+          hasTag 
+            ? 'text-blue-400 bg-blue-900/30 hover:bg-blue-900/40' 
+            : isUserMessage 
+              ? 'text-white border-2 border-white/50 hover:bg-white/20 hover:border-white/70' 
+              : 'text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600'
         }`}
         title={hasTag ? 'Tagged' : 'Add tag'}
       >
-        <svg className="w-4 h-4" fill={hasTag ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-        </svg>
+        {hasTag ? (
+          <svg className={`${isUserMessage ? 'w-5 h-5' : 'w-4 h-4'}`} fill="currentColor" viewBox="0 0 24 24">
+            <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+        ) : (
+          <svg className={`${isUserMessage ? 'w-5 h-5' : 'w-4 h-4'}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+        )}
       </button>
 
       {showMenu && (

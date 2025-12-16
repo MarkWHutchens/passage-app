@@ -84,6 +84,41 @@ export async function updateKnowledge(id: string, entry: Partial<Omit<KnowledgeE
 }
 
 /**
+ * Update tags for a knowledge entry
+ */
+export async function updateKnowledgeTags(id: string, tags: string[]): Promise<void> {
+  try {
+    // Fetch existing entry
+    const existing = await knowledgeIndex.namespace(KNOWLEDGE_NAMESPACE).fetch([id])
+    
+    if (!existing.records[id]) {
+      throw new Error('Knowledge entry not found')
+    }
+    
+    const existingMetadata = existing.records[id].metadata
+    const embedding = existing.records[id].values
+    
+    // Update only the tags in metadata
+    const updatedMetadata = {
+      ...existingMetadata,
+      tags,
+    }
+    
+    // Update in Pinecone (keeps same embedding)
+    await knowledgeIndex.namespace(KNOWLEDGE_NAMESPACE).upsert([{
+      id,
+      values: embedding,
+      metadata: updatedMetadata,
+    }])
+    
+    console.log('✅ Knowledge tags updated:', id, tags)
+  } catch (error) {
+    console.error('Error updating knowledge tags:', error)
+    throw error
+  }
+}
+
+/**
  * Delete a knowledge entry
  */
 export async function deleteKnowledge(id: string): Promise<void> {

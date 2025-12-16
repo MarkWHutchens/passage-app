@@ -14,6 +14,14 @@ export default async function HomePage() {
     .eq('id', user?.id!)
     .single() as any
 
+  // Check if user has any conversations (to determine if first-time user)
+  const { count: conversationCount } = await supabase
+    .from('conversations')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user?.id!) as any
+  
+  const isFirstVisit = conversationCount === 0
+
   const handleSignOut = async () => {
     'use server'
     const supabase = await createClient()
@@ -49,7 +57,7 @@ export default async function HomePage() {
         {/* Welcome Section */}
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 mb-8">
           <h2 className="text-3xl font-bold mb-4 text-slate-900 dark:text-slate-50">
-            Welcome back
+            {isFirstVisit ? 'Welcome' : 'Welcome back'}
           </h2>
           <p className="text-slate-600 dark:text-slate-400 mb-6">
             {profile?.entry_point 

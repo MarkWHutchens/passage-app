@@ -26,12 +26,25 @@ const COUNTRIES: { value: Country; label: string }[] = [
   { value: 'other', label: 'Other' },
 ]
 
+type Voice = 'alloy' | 'echo' | 'fable' | 'nova' | 'onyx' | 'shimmer'
+
+const VOICES: { value: Voice; label: string; description: string }[] = [
+  { value: 'alloy', label: 'Alloy', description: 'Neutral and balanced' },
+  { value: 'echo', label: 'Echo', description: 'Warm and friendly' },
+  { value: 'fable', label: 'Fable', description: 'Calm and reassuring' },
+  { value: 'nova', label: 'Nova', description: 'Bright and clear' },
+  { value: 'onyx', label: 'Onyx', description: 'Deep and grounding' },
+  { value: 'shimmer', label: 'Shimmer', description: 'Soft and gentle' },
+]
+
 export default function OnboardPage() {
   const [selectedEntry, setSelectedEntry] = useState<EntryPoint | null>(null)
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null)
-  const [step, setStep] = useState<'entry' | 'country' | 'name'>('entry')
+  const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null)
+  const [step, setStep] = useState<'entry' | 'country' | 'voice' | 'name'>('entry')
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [playingVoice, setPlayingVoice] = useState<Voice | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -42,7 +55,46 @@ export default function OnboardPage() {
 
   const handleCountryNext = () => {
     if (!selectedCountry) return
+    setStep('voice')
+  }
+
+  const handleVoiceNext = () => {
+    if (!selectedVoice) return
     setStep('name')
+  }
+
+  const playVoiceSample = async (voice: Voice) => {
+    if (playingVoice) return // Prevent playing multiple at once
+    
+    setPlayingVoice(voice)
+    try {
+      const response = await fetch('/api/voice/sample', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice }),
+      })
+
+      if (response.ok) {
+        const audioBlob = await response.blob()
+        const audioUrl = URL.createObjectURL(audioBlob)
+        const audio = new Audio(audioUrl)
+        
+        audio.onended = () => {
+          setPlayingVoice(null)
+          URL.revokeObjectURL(audioUrl)
+        }
+        
+        audio.onerror = () => {
+          setPlayingVoice(null)
+          URL.revokeObjectURL(audioUrl)
+        }
+        
+        await audio.play()
+      }
+    } catch (error) {
+      console.error('Error playing voice sample:', error)
+      setPlayingVoice(null)
+    }
   }
 
   const handleComplete = async () => {
@@ -57,23 +109,34 @@ export default function OnboardPage() {
         console.log('Name to save:', name.trim() || null)
         console.log('Entry point:', selectedEntry)
         console.log('Country:', selectedCountry)
+        console.log('Voice:', selectedVoice)
         console.log('User ID:', user.id)
         
-        const result = await supabase
+        const { error: updateError } = await supabase
           .from('users')
           .update({ 
             entry_point: selectedEntry,
             name: name.trim() || null,
-            country: selectedCountry
+            country: selectedCountry,
+            voice_preference: selectedVoice,
+            onboarding_complete: true
           } as any)
           .eq('id', user.id)
         
-        console.log('Update result:', result)
+        console.log('Update result:', updateError ? 'Error' : 'Success')
         console.log('===================')
+        
+        if (updateError) {
+          console.error('Error updating profile:', updateError)
+          setLoading(false)
+          return
+        }
       }
 
+      // Wait a moment to ensure database update propagates
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       router.push('/home')
-      router.refresh()
     } catch (error) {
       console.error('Error saving profile:', error)
       setLoading(false)
@@ -128,13 +191,90 @@ export default function OnboardPage() {
     )
   }
 
+  if (step === 'voice') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+        <div className="w-full max-w-2xl">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8">
+            <button
+              onClick={() => setStep('country')}
+              className="mb-4 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
+            >
+              ← Back
+            </button>
+            
+            <h1 className="text-3xl font-bold text-center mb-4 text-slate-900 dark:text-slate-50">
+              How would you like me to sound?
+            </h1>
+            <p className="text-center text-slate-600 dark:text-slate-400 mb-8">
+              Choose a voice for when I read responses aloud. Tap the play button to hear a sample.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              {VOICES.map((voice) => (
+                <button
+                  key={voice.value}
+                  onClick={() => setSelectedVoice(voice.value)}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    selectedVoice === voice.value
+                      ? 'border-slate-900 bg-slate-50 dark:border-slate-50 dark:bg-slate-700'
+                      : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-semibold text-slate-900 dark:text-slate-50">
+                      {voice.label}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        playVoiceSample(voice.value)
+                      }}
+                      disabled={playingVoice !== null}
+                      className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                    >
+                      {playingVoice === voice.value ? (
+                        <svg className="w-5 h-5 text-slate-700 dark:text-slate-300 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-slate-700 dark:text-slate-300" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  <div className="text-sm text-slate-600 dark:text-slate-400">
+                    {voice.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleVoiceNext}
+              disabled={!selectedVoice || loading}
+              className="w-full py-3 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-50 dark:text-slate-900"
+            >
+              Continue
+            </button>
+
+            <p className="mt-6 text-sm text-slate-500 dark:text-slate-400 text-center">
+              You can change this later in settings
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (step === 'name') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
         <div className="w-full max-w-md">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8">
             <button
-              onClick={() => setStep('country')}
+              onClick={() => setStep('voice')}
               className="mb-4 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
             >
               ← Back

@@ -13,12 +13,12 @@ export async function GET(request: Request) {
       // Check if user has completed onboarding
       const { data: profile } = await supabase
         .from('users')
-        .select('entry_point')
+        .select('onboarding_complete')
         .eq('id', data.user.id)
         .single() as any
       
       // Redirect to onboarding if not completed, otherwise to home
-      const destination = profile?.entry_point ? '/home' : '/onboard'
+      const destination = profile?.onboarding_complete ? '/home' : '/onboard'
       return NextResponse.redirect(`${origin}${destination}`)
     }
   }

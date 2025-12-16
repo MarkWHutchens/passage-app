@@ -60,6 +60,40 @@ export async function GET(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user || !(await isAdmin(user.email || ''))) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    
+    if (!id) {
+      return NextResponse.json({ error: 'Missing ID' }, { status: 400 })
+    }
+
+    const body = await request.json()
+    const { tags } = body
+
+    if (!tags || !Array.isArray(tags)) {
+      return NextResponse.json({ error: 'Invalid tags' }, { status: 400 })
+    }
+
+    // Update tags in Pinecone
+    const { updateKnowledgeTags } = await import('@/lib/knowledge/ingest')
+    await updateKnowledgeTags(id, tags)
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error updating knowledge:', error)
+    return NextResponse.json({ error: 'Failed to update knowledge' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const supabase = await createClient()

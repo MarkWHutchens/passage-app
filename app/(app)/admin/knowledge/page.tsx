@@ -9,9 +9,9 @@ const ENTRY_POINTS = [
 ]
 
 const TAG_GROUPS = {
-  Emotional: ['anxiety', 'depression', 'anger', 'loneliness', 'shame', 'guilt', 'fear', 'hopelessness', 'overwhelm'],
+  Emotional: ['anxiety', 'depression', 'anger', 'loneliness', 'shame', 'guilt', 'fear', 'hopelessness', 'overwhelm', 'hope', 'grief', 'loss', 'relationships', 'exhaustion'],
   Relationships: ['marriage', 'co-parenting', 'family', 'friendship', 'boundaries', 'trust', 'betrayal', 'communication', 'conflict'],
-  Psychology: ['nervous-system', 'trauma', 'attachment', 'coping', 'triggers', 'patterns', 'identity', 'self-worth', 'resilience', 'neuroscience'],
+  Psychology: ['nervous-system', 'trauma', 'attachment', 'coping', 'triggers', 'patterns', 'identity', 'self-worth', 'resilience', 'neuroscience', 'perfectionism', 'values', 'meaning'],
   Recovery: ['recovery', 'relapse', 'progress', 'setbacks', 'milestones', 'healing', 'acceptance', 'change'],
   Practical: ['sleep', 'exercise', 'nutrition', 'routine', 'work', 'finances', 'legal', 'parenting'],
   Therapeutic: ['cbt', 'mindfulness', 'grounding', 'regulation', 'window-of-tolerance', 'urge-surfing', 'self-compassion']
@@ -51,6 +51,10 @@ export default function AdminKnowledgePage() {
   
   // Existing entries
   const [entries, setEntries] = useState<KnowledgeEntry[]>([])
+  
+  // Edit tags state
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
+  const [editTags, setEditTags] = useState<string[]>([])
 
   useEffect(() => {
     checkAdmin()
@@ -229,6 +233,60 @@ export default function AdminKnowledgePage() {
       setSelectedTags([...selectedTags, tag])
     }
   }
+  
+  const toggleEditTag = (tag: string) => {
+    if (editTags.includes(tag)) {
+      setEditTags(editTags.filter(t => t !== tag))
+    } else {
+      setEditTags([...editTags, tag])
+    }
+  }
+  
+  const handleEditTags = (entry: KnowledgeEntry) => {
+    setEditingEntryId(entry.id)
+    setEditTags([...entry.tags])
+  }
+  
+  const handleSaveEditTags = async () => {
+    if (!editingEntryId) return
+    
+    setSaving(true)
+    setMessage('')
+    
+    try {
+      const response = await fetch(`/api/admin/knowledge?id=${editingEntryId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tags: editTags,
+        }),
+      })
+      
+      if (response.ok) {
+        setMessage('✅ Tags updated successfully!')
+        setEditingEntryId(null)
+        setEditTags([])
+        // Reload entries
+        const refreshResponse = await fetch('/api/admin/knowledge')
+        const data = await refreshResponse.json()
+        setEntries(data.entries || [])
+      } else {
+        setMessage('❌ Failed to update tags')
+      }
+    } catch (error) {
+      console.error('Error updating tags:', error)
+      setMessage('❌ Error updating tags')
+    } finally {
+      setSaving(false)
+    }
+  }
+  
+  const handleCancelEdit = () => {
+    setEditingEntryId(null)
+    setEditTags([])
+  }
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
@@ -394,7 +452,7 @@ export default function AdminKnowledgePage() {
               Type
             </label>
             <div className="flex gap-4">
-              {['education', 'story', 'exercise', 'framework'].map((t) => (
+              {['education', 'story', 'exercise'].map((t) => (
                 <label key={t} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
@@ -527,12 +585,20 @@ export default function AdminKnowledgePage() {
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={() => handleDelete(entry.id)}
-                      className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditTags(entry)}
+                        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Edit Tags
+                      </button>
+                      <button
+                        onClick={() => handleDelete(entry.id)}
+                        className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
                     {entry.content}
@@ -543,6 +609,59 @@ export default function AdminKnowledgePage() {
           )}
         </div>
       </div>
+
+      {/* Edit Tags Modal */}
+      {editingEntryId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-4">
+                Edit Tags
+              </h3>
+              
+              <div className="space-y-4 mb-6">
+                {Object.entries(TAG_GROUPS).map(([group, tags]) => (
+                  <div key={group}>
+                    <div className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2">
+                      {group}
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {tags.map((tag) => (
+                        <label key={tag} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editTags.includes(tag)}
+                            onChange={() => toggleEditTag(tag)}
+                            className="w-4 h-4"
+                          />
+                          <span className="text-xs text-slate-700 dark:text-slate-300">{tag}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEditTags}
+                  disabled={saving}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save Tags'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

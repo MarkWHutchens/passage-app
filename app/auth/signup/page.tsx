@@ -11,6 +11,7 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -47,26 +48,62 @@ export default function SignUpPage() {
 
       if (data.user) {
         // Create user profile in public.users table
-        const { error: profileError } = await supabase
+        const { error: profileError} = await supabase
           .from('users')
           .insert({
             id: data.user.id,
             email: data.user.email!,
             subscription_status: 'trial',
             trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days trial
+            onboarding_complete: false,
           } as any)
 
         if (profileError) {
           console.error('Error creating user profile:', profileError)
         }
 
-        router.push('/onboard')
-        router.refresh()
+        // Show email confirmation screen
+        setEmailSent(true)
+        setLoading(false)
       }
     } catch (err) {
       setError('An unexpected error occurred')
       setLoading(false)
     }
+  }
+
+  // Show email confirmation screen after signup
+  if (emailSent) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+        <div className="w-full max-w-md">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 text-center">
+            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            
+            <h1 className="text-2xl font-bold mb-4 text-slate-900 dark:text-slate-50">
+              Check Your Email
+            </h1>
+            
+            <p className="text-slate-600 dark:text-slate-400 mb-6">
+              We've sent a confirmation link to <strong className="text-slate-900 dark:text-slate-50">{email}</strong>
+            </p>
+            
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-8">
+              Click the link in the email to confirm your account and get started.
+            </p>
+
+            <div className="text-center text-sm text-slate-500 dark:text-slate-400">
+              <p>Didn't receive the email?</p>
+              <p className="mt-2">Check your spam folder</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

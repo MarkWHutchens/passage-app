@@ -20,12 +20,12 @@ export default async function AppLayout({
   // Check if user has completed onboarding
   const { data: profile } = await supabase
     .from('users')
-    .select('entry_point')
+    .select('onboarding_complete')
     .eq('id', user.id)
     .single() as any
 
-  // Redirect to onboarding if entry_point is not set
-  if (!profile?.entry_point) {
+  // Redirect to onboarding if not completed
+  if (!profile?.onboarding_complete) {
     redirect('/onboard')
   }
 
