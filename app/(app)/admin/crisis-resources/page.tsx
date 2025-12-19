@@ -113,7 +113,7 @@ export default function CrisisResourcesAdmin() {
                     </button>
                   </div>
                   <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-900 rounded text-sm font-mono text-slate-700 dark:text-slate-300 max-h-32 overflow-y-auto">
-                    {resource.content.substring(0, 200)}...
+                    {JSON.stringify(resource.resources, null, 2).substring(0, 200)}...
                   </div>
                 </div>
               ))}
@@ -164,17 +164,25 @@ export default function CrisisResourcesAdmin() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Content (Markdown)
+                  Resources (JSON)
                 </label>
                 <textarea
-                  value={editingResource.content}
-                  onChange={(e) =>
-                    setEditingResource({ ...editingResource, content: e.target.value })
-                  }
+                  value={JSON.stringify(editingResource.resources, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      const parsed = JSON.parse(e.target.value)
+                      setEditingResource({ ...editingResource, resources: parsed })
+                    } catch (err) {
+                      // Keep the text value even if invalid JSON
+                    }
+                  }}
                   rows={20}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 font-mono text-sm"
-                  placeholder="# Emergency Number: 000&#10;&#10;## 24/7 Crisis Support&#10;..."
+                  placeholder='{"mental_health": [...], "young_people": [...]}'
                 />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Edit the JSON structure carefully. Invalid JSON will not save.
+                </p>
               </div>
             </div>
 

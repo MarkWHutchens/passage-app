@@ -78,7 +78,7 @@ export default function CrisisPage() {
               .from('crisis_resources')
               .select('country_code')
               .ilike('country_name', profile.country)
-              .single()
+              .single() as { data: { country_code: string } | null }
             
             if (resourceByName) {
               countryCode = resourceByName.country_code
@@ -141,10 +141,13 @@ export default function CrisisPage() {
       )
       const countryValue = reverseMap[countryCode] || 'other'
       
-      await supabase
-        .from('users')
-        .update({ country: countryValue } as any)
-        .eq('id', user.id)
+      // Update user country
+      try {
+        // @ts-ignore - Supabase type limitation
+        await supabase.from('users').update({ country: countryValue }).eq('id', user.id)
+      } catch (error) {
+        console.error('Error updating country:', error)
+      }
     }
   }
 
@@ -343,7 +346,7 @@ export default function CrisisPage() {
                       {CATEGORY_LABELS[category] || category}
                     </h3>
                     <div className="space-y-3">
-                      {contacts.map((contact, idx) => (
+                      {contacts.map((contact: CrisisContact, idx: number) => (
                         <div key={idx}>
                           {renderContact(contact)}
                         </div>

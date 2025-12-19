@@ -22,44 +22,23 @@ export default async function HomePage() {
   
   const isFirstVisit = conversationCount === 0
 
-  const handleSignOut = async () => {
-    'use server'
-    const supabase = await createClient()
-    await supabase.auth.signOut()
-  }
-
   return (
     <div className="min-h-screen p-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <header className="flex justify-between items-center mb-8 py-4">
+        <header className="mb-8 py-4">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
             Passage
           </h1>
-          <nav className="flex items-center gap-4">
-            <Link
-              href="/settings"
-              className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
-            >
-              Settings
-            </Link>
-            <form action={handleSignOut}>
-              <button
-                type="submit"
-                className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50"
-              >
-                Sign Out
-              </button>
-            </form>
-          </nav>
         </header>
 
         {/* Welcome Section */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 mb-8">
-          <h2 className="text-3xl font-bold mb-4 text-slate-900 dark:text-slate-50">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 mb-8 text-center">
+          <h2 className="text-3xl font-bold mb-2 text-slate-900 dark:text-slate-50">
             {isFirstVisit ? 'Welcome' : 'Welcome back'}
+            {profile?.name && `, ${profile.name}`}
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 mb-6">
+          <p className="text-slate-600 dark:text-slate-400 mb-8">
             {profile?.entry_point 
               ? `Supporting you through ${profile.entry_point}.`
               : 'Ready to support you through your journey.'
@@ -67,7 +46,7 @@ export default async function HomePage() {
           </p>
           <Link
             href="/talk?new=true"
-            className="inline-block px-6 py-3 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-colors dark:bg-slate-50 dark:text-slate-900"
+            className="inline-block px-8 py-4 bg-blue-600 text-white rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
           >
             Start Conversation
           </Link>
@@ -92,33 +71,6 @@ export default async function HomePage() {
                 </p>
               </div>
             </div>
-          </Link>
-        </div>
-
-        {/* Quick Links */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            href="/memories"
-            className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          >
-            <h3 className="font-semibold text-lg mb-2 text-slate-900 dark:text-slate-50">
-              Memories & Patterns
-            </h3>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">
-              View your conversation history and discovered patterns
-            </p>
-          </Link>
-
-          <Link
-            href="/settings"
-            className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-          >
-            <h3 className="font-semibold text-lg mb-2 text-slate-900 dark:text-slate-50">
-              Settings
-            </h3>
-            <p className="text-slate-600 dark:text-slate-400 text-sm">
-              Manage your account and preferences
-            </p>
           </Link>
         </div>
 

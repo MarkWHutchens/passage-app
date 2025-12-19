@@ -55,28 +55,46 @@ export async function POST(request: Request) {
     console.log(messageTexts.substring(0, 500) + '...')
     console.log(`Total message text length: ${messageTexts.length} characters`)
     
+    // Get conversations to check cross-conversation patterns
+    const { data: conversations } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('user_id', user.id) as any
+    
+    const conversationCount = conversations?.length || 0
+    console.log(`💬 User has ${conversationCount} conversations`)
+
     console.log('🤖 Calling Claude API...')
-      const response = await anthropic.messages.create({
+    const response = await anthropic.messages.create({
       model: process.env.CLAUDE_HAIKU_MODEL || 'claude-3-5-haiku-20241022',
-      max_tokens: 1500,
-      system: `You are analyzing conversation messages to detect recurring patterns, themes, and insights. The user is navigating ${profile?.entry_point || 'a life transition'}.
+      max_tokens: 2000,
+      system: `You are analyzing conversation messages to detect SIGNIFICANT recurring patterns. The user is navigating ${profile?.entry_point || 'a life transition'}.
+
+CRITICAL RULES:
+1. CONSOLIDATE similar themes into ONE pattern - NOT separate entries
+2. A pattern must appear across 2+ different conversations to count
+3. Maximum 10 patterns total - only the most significant ones
+4. Merge related themes (e.g., "custody struggles", "child access issues" = ONE pattern about child custody)
 
 Identify:
-1. RECURRING THEMES - Topics mentioned multiple times
-2. EMOTIONAL PATTERNS - Emotions that come up repeatedly  
-3. TRIGGERS - Situations that consistently cause difficulty
-4. PROGRESS - Signs of growth or positive change
+1. RECURRING THEMES - Major topics mentioned across multiple conversations
+2. EMOTIONAL PATTERNS - Dominant emotions appearing repeatedly  
+3. TRIGGERS - Consistent situations causing difficulty
+4. PROGRESS - Clear signs of growth or positive change
 
-For each pattern found, provide:
+For each pattern:
 - type: 'recurring_theme', 'emotion', 'trigger', or 'progress'
-- description: A brief, empathetic summary (1 sentence)
-- evidence: Array of message excerpts that show this pattern
-- count: How many times this appears
+- description: Brief, consolidated summary covering all variations of this theme
+- evidence: Array of 2-3 message excerpts showing this pattern
+- count: Total occurrences across all conversations
+- conversation_ids: Array of conversation IDs where this appears
 
-Format as JSON array. Limit to top 5 most significant patterns.`,
+BEFORE adding a pattern, mentally check: "Could this be merged with another pattern I've identified?"
+
+Format as JSON array of maximum 10 patterns.`,
       messages: [{
         role: 'user',
-        content: `Analyze these messages for patterns:\n\n${messageTexts}`
+        content: `Analyze these messages for consolidated patterns (user has ${conversationCount} conversations total):\n\n${messageTexts}`
       }]
     })
 
@@ -191,12 +209,36 @@ Format as JSON array. Limit to top 5 most significant patterns.`,
       }
     }
 
+    // Update tracking data - save conversation count at time of analysis
+    console.log('\n💾 Updating tracking data...')
+    console.log(`   User ID: ${user.id}`)
+    console.log(`   Conversation count: ${conversationCount}`)
+    console.log(`   Timestamp: ${new Date().toISOString()}`)
+    
+    const { data: updateResult, error: trackingError } = await (supabase
+      .from('users')
+      .update({ 
+        last_pattern_analysis: new Date().toISOString(),
+        conversation_count_at_last_analysis: conversationCount
+      } as any)
+      .eq('id', user.id)
+      .select() as any)
+    
+    if (trackingError) {
+      console.log('❌ Error updating tracking data:', trackingError)
+      console.log('   Error details:', JSON.stringify(trackingError, null, 2))
+    } else {
+      console.log(`✅ Tracking data updated successfully!`)
+      console.log('   Update result:', JSON.stringify(updateResult, null, 2))
+    }
+
     console.log(`\n🎉 Pattern detection complete! Stored ${storedPatterns.length} patterns`)
     console.log('=== PATTERN DETECTION FINISHED ===\n')
 
     return NextResponse.json({ 
       message: 'Patterns detected successfully',
-      patterns: storedPatterns
+      patterns: storedPatterns,
+      conversationsAnalyzed: conversationCount
     })
   } catch (error) {
     console.error('Error detecting patterns:', error)

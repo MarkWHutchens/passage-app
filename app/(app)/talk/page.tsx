@@ -40,18 +40,25 @@ export default function TalkPage() {
   const [loading, setLoading] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
+  const [voicePreferenceLoaded, setVoicePreferenceLoaded] = useState(false)
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null)
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false)
   const [entryPoint, setEntryPoint] = useState<string>('other')
   const [showEntryPointSelector, setShowEntryPointSelector] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const voiceEnabledRef = useRef(true)
   const supabase = createClient()
   
   // Update ref when conversationId changes from URL
   useEffect(() => {
     conversationIdRef.current = conversationId
   }, [conversationId])
+
+  // Load voice preference FIRST on mount
+  useEffect(() => {
+    loadVoicePreference()
+  }, [])
 
   useEffect(() => {
     if (conversationId) {
@@ -60,10 +67,62 @@ export default function TalkPage() {
     } else {
       loadConversationList()
     }
-    
-    // Load voice preference from user profile or localStorage
-    loadUserProfile()
   }, [conversationId])
+
+  // Trigger background analysis when leaving a conversation
+  useEffect(() => {
+    const triggerBackgroundAnalysis = async () => {
+      // Only trigger if we have a real conversation with messages
+      if (!conversationId || conversationId === 'new' || messages.length < 5) {
+        return
+      }
+
+      try {
+        // Silently trigger pattern analysis
+        fetch('/api/background/analyze-patterns', {
+          method: 'POST',
+        }).catch(() => {}) // Ignore errors - this is best effort
+
+        // Silently trigger insight generation
+        fetch('/api/background/generate-insights', {
+          method: 'POST',
+        }).catch(() => {}) // Ignore errors - this is best effort
+      } catch (error) {
+        // Silently fail - user doesn't need to know
+      }
+    }
+
+    // Trigger when component unmounts (user leaves page)
+    return () => {
+      triggerBackgroundAnalysis()
+    }
+  }, [conversationId, messages.length])
+
+  const loadVoicePreference = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setVoicePreferenceLoaded(true)
+        return
+      }
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('voice_muted')
+        .eq('id', user.id)
+        .single() as any
+
+      if (profile) {
+        const enabled = !profile.voice_muted
+        setVoiceEnabled(enabled)
+        voiceEnabledRef.current = enabled
+      }
+      setVoicePreferenceLoaded(true)
+    } catch (error) {
+      console.error('Error loading voice preference:', error)
+      setVoicePreferenceLoaded(true)
+    }
+  }
 
   const loadUserProfile = async () => {
     try {
@@ -78,8 +137,9 @@ export default function TalkPage() {
 
       if (profile) {
         setEntryPoint(profile.entry_point || 'other')
-        // Voice muted defaults to false (voice enabled by default)
-        setVoiceEnabled(!profile.voice_muted)
+        const enabled = !profile.voice_muted
+        setVoiceEnabled(enabled)
+        voiceEnabledRef.current = enabled
       }
     } catch (error) {
       console.error('Error loading profile:', error)
