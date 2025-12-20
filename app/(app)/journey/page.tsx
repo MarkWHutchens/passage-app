@@ -133,36 +133,6 @@ export default function JourneyPage() {
     }
   }
 
-  async function handleClearAndRetest() {
-    if (!confirm('Clear all patterns and re-analyze? This is for testing the new consolidated detection.')) {
-      return
-    }
-    
-    setAnalyzing(true)
-    try {
-      // Clear patterns
-      await fetch('/api/patterns/clear', { method: 'POST' })
-      
-      // Wait a moment
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // Re-analyze
-      const response = await fetch('/api/patterns/detect', { method: 'POST' })
-      const data = await response.json()
-      
-      // Reload all data including tracking info
-      setLoading(true)
-      await loadData()
-      
-      alert(`Analysis complete!\n\n✅ Created ${data.patterns?.length || 0} consolidated patterns\n📊 Analyzed ${data.conversationsAnalyzed} conversations\n\nCheck the status bar and patterns above.`)
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Clear and re-analyze failed')
-    } finally {
-      setAnalyzing(false)
-    }
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -238,26 +208,6 @@ export default function JourneyPage() {
                     Analyze {newConversations} new
                   </button>
                 )}
-              </div>
-
-              {/* Test Button (temporary) */}
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
-                      Test Consolidated Detection
-                    </p>
-                    <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-0.5">
-                      Clear patterns and re-analyze with new consolidation logic
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleClearAndRetest}
-                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm font-medium whitespace-nowrap"
-                  >
-                    Clear & Re-test
-                  </button>
-                </div>
               </div>
 
               {/* Patterns List */}
