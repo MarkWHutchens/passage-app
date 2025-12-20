@@ -19,6 +19,9 @@ export default function JourneyPage() {
   const [lastAnalysisCount, setLastAnalysisCount] = useState(0)
   const [lastVisit, setLastVisit] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [lastInsightGeneration, setLastInsightGeneration] = useState<string | null>(null)
+  const [lastPatternUpdate, setLastPatternUpdate] = useState<string | null>(null)
+  const [generatingInsight, setGeneratingInsight] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -76,7 +79,7 @@ export default function JourneyPage() {
       console.log('📊 Loading tracking data for user:', user.id)
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('conversation_count_at_last_analysis, last_journey_visit')
+        .select('conversation_count_at_last_analysis, last_journey_visit, last_insight_generation, last_pattern_analysis')
         .eq('id', user.id)
         .single() as any
 
@@ -89,6 +92,8 @@ export default function JourneyPage() {
       
       setLastAnalysisCount(analysisCount)
       setLastVisit(profile?.last_journey_visit || null)
+      setLastInsightGeneration(profile?.last_insight_generation || null)
+      setLastPatternUpdate(profile?.last_pattern_analysis || null)
 
       // Get current conversation count
       const { count } = await supabase
@@ -131,6 +136,81 @@ export default function JourneyPage() {
     } finally {
       setAnalyzing(false)
     }
+  }
+
+  async function handleGenerateInsight() {
+    if (patterns.length === 0) {
+      alert('No patterns detected yet. Run pattern analysis first.')
+      return
+    }
+
+    setGeneratingInsight(true)
+    try {
+      const response = await fetch('/api/patterns/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          patterns: patterns,
+          saveToHistory: true 
+        })
+      })
+
+      if (response.ok) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          // Update last_insight_generation timestamp
+          await (supabase
+            .from('users')
+            .update({ last_insight_generation: new Date().toISOString() } as any)
+            .eq('id', user.id) as any)
+        }
+
+        // Reload data
+        setLoading(true)
+        await loadData()
+        
+        alert('Insight generated! Check the Insights tab.')
+      } else {
+        alert('Failed to generate insight')
+      }
+    } catch (error) {
+      console.error('Error generating insight:', error)
+      alert('Failed to generate insight')
+    } finally {
+      setGeneratingInsight(false)
+    }
+  }
+
+  function getTimeAgo(dateString: string | null): string {
+    if (!dateString) return 'Never'
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    
+    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+    if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    return 'Just now'
+  }
+
+  function needsNewInsight(): boolean {
+    // No patterns yet
+    if (patterns.length === 0) return false
+    
+    // Never generated an insight
+    if (!lastInsightGeneration) return true
+    
+    // Patterns updated after last insight
+    if (lastPatternUpdate && new Date(lastPatternUpdate) > new Date(lastInsightGeneration)) {
+      return true
+    }
+    
+    // Insight older than 7 days
+    const daysSinceInsight = (new Date().getTime() - new Date(lastInsightGeneration).getTime()) / (1000 * 60 * 60 * 24)
+    if (daysSinceInsight > 7) return true
+    
+    return false
   }
 
   if (loading) {
@@ -255,6 +335,43 @@ export default function JourneyPage() {
 
           {activeTab === 'insights' && (
             <div className="space-y-4">
+              {/* Status Bar */}
+              {patterns.length > 0 && (
+                <div className="bg-slate-100 dark:bg-slate-800 rounded-lg px-4 py-3 flex items-center justify-between text-sm">
+                  {lastInsightGeneration ? (
+                    <>
+                      <span className="text-slate-600 dark:text-slate-400">
+                        Last insight: {getTimeAgo(lastInsightGeneration)} • Based on {patterns.length} pattern{patterns.length > 1 ? 's' : ''}
+                      </span>
+                      {needsNewInsight() ? (
+                        <button
+                          onClick={handleGenerateInsight}
+                          disabled={generatingInsight}
+                          className="px-3 py-1 bg-purple-600 text-white rounded-md text-xs font-medium hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          {generatingInsight ? 'Generating...' : 'Generate insight'}
+                        </button>
+                      ) : (
+                        <span className="text-green-600 font-medium">✓ Up to date</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-600 dark:text-slate-400">
+                        {patterns.length} pattern{patterns.length > 1 ? 's' : ''} detected
+                      </span>
+                      <button
+                        onClick={handleGenerateInsight}
+                        disabled={generatingInsight}
+                        className="px-3 py-1 bg-purple-600 text-white rounded-md text-xs font-medium hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        {generatingInsight ? 'Generating...' : 'Generate your first insight'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
               {insights.length > 0 ? (
                 insights.map((insight) => (
                   <div
