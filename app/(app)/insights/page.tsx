@@ -92,16 +92,14 @@ export default function InsightsPage() {
       if (!user) return
 
       // Mark all unviewed insights as viewed
-      // @ts-ignore - Supabase type issue
-      await supabase
+      await (supabase as any)
         .from('insights')
         .update({ viewed: true })
         .eq('user_id', user.id)
         .eq('viewed', false)
 
       // Clear the has_new_patterns flag
-      // @ts-ignore - Supabase type issue
-      await supabase
+      await (supabase as any)
         .from('users')
         .update({ has_new_patterns: false })
         .eq('id', user.id)
@@ -154,8 +152,7 @@ export default function InsightsPage() {
         await loadInsightHistory()
         
         // Set flag for new patterns
-        // @ts-ignore - Supabase type issue
-        await supabase
+        await (supabase as any)
           .from('users')
           .update({ has_new_patterns: true })
           .eq('id', user.id)
@@ -295,11 +292,8 @@ export default function InsightsPage() {
               </div>
             ) : (
               <div className="bg-white dark:bg-slate-800 rounded-lg p-8 border border-slate-200 dark:border-slate-700 text-center">
-                <p className="text-slate-600 dark:text-slate-400 mb-2">
-                  No insights yet
-                </p>
-                <p className="text-slate-500 dark:text-slate-500 text-sm">
-                  Analyze your conversations on the <Link href="/patterns" className="text-purple-600 dark:text-purple-400 underline">Patterns</Link> page, then come back here to generate insights
+                <p className="text-slate-600 dark:text-slate-400">
+                  Insights are generated from your patterns. Keep talking, and I'll share what I notice.
                 </p>
               </div>
             )}

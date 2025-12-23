@@ -53,12 +53,12 @@ export async function POST(request: NextRequest) {
     const detectData = await detectResponse.json()
 
     // Update tracking fields
-    await supabase
+    await (supabase as any)
       .from('users')
       .update({
         last_pattern_analysis: new Date().toISOString(),
         conversation_count_at_last_analysis: currentConversationCount,
-      } as any)
+      })
       .eq('id', user.id)
 
     return NextResponse.json({

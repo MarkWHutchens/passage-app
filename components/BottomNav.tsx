@@ -14,17 +14,25 @@ export default function BottomNav() {
     checkForNewInsights()
   }, [])
 
+  // Re-check when pathname changes
+  useEffect(() => {
+    console.log('🔄 BottomNav: pathname changed to', pathname)
+    checkForNewInsights()
+  }, [pathname])
+
   const checkForNewInsights = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      console.log('🔍 BottomNav: Checking has_new_patterns...')
       const { data } = await supabase
         .from('users')
         .select('has_new_patterns')
         .eq('id', user.id)
         .single() as any
 
+      console.log('🔍 BottomNav: has_new_patterns =', data?.has_new_patterns)
       setHasNewInsights(data?.has_new_patterns || false)
     } catch (error) {
       console.error('Error checking for new insights:', error)

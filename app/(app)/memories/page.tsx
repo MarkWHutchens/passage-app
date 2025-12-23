@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { TagType } from '@/types'
+import PrintButton from '@/components/journey/PrintButton'
+import ExportButton from '@/components/journey/ExportButton'
 
 interface TaggedMessage {
   id: string
@@ -15,10 +17,7 @@ interface TaggedMessage {
   custom_label?: string
 }
 
-type TabType = 'all' | 'therapist'
-
 export default function MemoriesPage() {
-  const [activeTab, setActiveTab] = useState<TabType>('all')
   const [taggedMessages, setTaggedMessages] = useState<TaggedMessage[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
@@ -32,7 +31,6 @@ export default function MemoriesPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Query messages with their tags
       const { data, error } = await supabase
         .from('memory_tags')
         .select(`
@@ -56,9 +54,8 @@ export default function MemoriesPage() {
         return
       }
 
-      // Flatten the data structure
       const flattened = data
-        .filter((item: any) => item.messages) // Filter out any with null messages
+        .filter((item: any) => item.messages)
         .map((item: any) => ({
           id: item.messages.id,
           content: item.messages.content,
@@ -77,44 +74,6 @@ export default function MemoriesPage() {
     }
   }
 
-  const getFilteredMessages = () => {
-    if (activeTab === 'all') return taggedMessages
-    if (activeTab === 'therapist') {
-      return taggedMessages.filter(msg => msg.tag_type === 'therapist')
-    }
-    return taggedMessages
-  }
-
-  // Group messages by custom label for better organization
-  const groupMessagesByCustomLabel = (messages: TaggedMessage[]) => {
-    const customMessages = messages.filter(msg => msg.tag_type === 'custom' && msg.custom_label)
-    const groups: Record<string, TaggedMessage[]> = {}
-    
-    customMessages.forEach(msg => {
-      const label = msg.custom_label || 'Other'
-      if (!groups[label]) {
-        groups[label] = []
-      }
-      groups[label].push(msg)
-    })
-    
-    return groups
-  }
-
-  const getTagLabel = (tagType: TagType, customLabel?: string) => {
-    if (tagType === 'custom' && customLabel) return customLabel
-    const labels: Record<TagType, string> = {
-      remind: '💡 Remember',
-      therapist: '🗣️ Therapist',
-      pattern: '🔍 Pattern',
-      custom: '✏️ Custom',
-      important: '⭐ Important'
-    }
-    return labels[tagType]
-  }
-
-  const filteredMessages = getFilteredMessages()
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -123,182 +82,184 @@ export default function MemoriesPage() {
     )
   }
 
+  // Group memories by tag type
+  const therapistMemories = taggedMessages.filter(m => m.tag_type === 'therapist')
+  const rememberMemories = taggedMessages.filter(m => m.tag_type === 'remind')
+  const patternMemories = taggedMessages.filter(m => m.tag_type === 'pattern')
+  const customMemories: { [key: string]: TaggedMessage[] } = {}
+  taggedMessages.forEach(m => {
+    if (m.tag_type === 'custom' && m.custom_label) {
+      if (!customMemories[m.custom_label]) {
+        customMemories[m.custom_label] = []
+      }
+      customMemories[m.custom_label].push(m)
+    }
+  })
+
+  const hasMemories = taggedMessages.length > 0
+
   return (
-    <div className="min-h-screen p-4">
+    <div className="min-h-screen p-4 pb-24">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
         <header className="mb-8 py-4">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
             Memories
           </h1>
+          <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
+            Tagged messages from your conversations
+          </p>
         </header>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-              activeTab === 'all'
-                ? 'border-slate-900 text-slate-900 dark:border-slate-50 dark:text-slate-50'
-                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50'
-            }`}
-          >
-            All ({taggedMessages.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('therapist')}
-            className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-              activeTab === 'therapist'
-                ? 'border-slate-900 text-slate-900 dark:border-slate-50 dark:text-slate-50'
-                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50'
-            }`}
-          >
-            Therapist ({taggedMessages.filter(m => m.tag_type === 'therapist').length})
-          </button>
-        </div>
-
-        {/* Tagged Messages */}
-        {filteredMessages.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 text-center">
+        {!hasMemories ? (
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 text-center">
             <p className="text-slate-600 dark:text-slate-400">
-              No tagged messages yet
-            </p>
-            <p className="text-slate-500 dark:text-slate-500 text-sm mt-2">
-              Tag messages in your conversations to save them here
+              When something feels important, tag it. Your saved moments will appear here.
             </p>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Group custom tags by label in "All" tab */}
-            {activeTab === 'all' && (() => {
-              const customGroups = groupMessagesByCustomLabel(filteredMessages)
-              const nonCustomMessages = filteredMessages.filter(msg => msg.tag_type !== 'custom')
-              
-              return (
-                <>
-                  {/* Non-custom messages */}
-                  {nonCustomMessages.length > 0 && (
-                    <div className="space-y-4">
-                      {nonCustomMessages.map((msg) => (
-                        <Link
-                          key={msg.id}
-                          href={`/talk?conversation=${msg.conversation_id}`}
-                          className="block bg-white dark:bg-slate-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-                        >
-                          <div className="flex items-start justify-between gap-4 mb-3">
-                            <span className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm rounded-full">
-                              {getTagLabel(msg.tag_type, msg.custom_label)}
-                            </span>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {new Date(msg.created_at).toLocaleDateString([], {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </div>
-                          
-                          <p className="text-slate-900 dark:text-slate-50 mb-2 line-clamp-3">
-                            {msg.content}
-                          </p>
-                          
-                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <span className={`px-2 py-1 rounded ${
-                              msg.role === 'user'
-                                ? 'bg-slate-100 dark:bg-slate-700'
-                                : 'bg-blue-50 dark:bg-blue-900/20'
-                            }`}>
-                              {msg.role === 'user' ? 'You' : 'Passage'}
-                            </span>
-                            <span>→ View conversation</span>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Custom tags grouped by label */}
-                  {Object.entries(customGroups).map(([label, messages]) => (
-                    <div key={label} className="space-y-4">
-                      <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-                        <span className="inline-block px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 text-sm rounded-full">
-                          ✏️ {label}
-                        </span>
-                        <span className="text-sm text-slate-500 dark:text-slate-400">({messages.length})</span>
-                      </h2>
-                      {messages.map((msg) => (
-                        <Link
-                          key={msg.id}
-                          href={`/talk?conversation=${msg.conversation_id}`}
-                          className="block bg-white dark:bg-slate-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow ml-4"
-                        >
-                          <div className="flex items-start justify-between gap-4 mb-3">
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {new Date(msg.created_at).toLocaleDateString([], {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </div>
-                          
-                          <p className="text-slate-900 dark:text-slate-50 mb-2 line-clamp-3">
-                            {msg.content}
-                          </p>
-                          
-                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <span className={`px-2 py-1 rounded ${
-                              msg.role === 'user'
-                                ? 'bg-slate-100 dark:bg-slate-700'
-                                : 'bg-blue-50 dark:bg-blue-900/20'
-                            }`}>
-                              {msg.role === 'user' ? 'You' : 'Passage'}
-                            </span>
-                            <span>→ View conversation</span>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  ))}
-                </>
-              )
-            })()}
-            
-            {/* For therapist tab, show messages normally */}
-            {activeTab === 'therapist' && filteredMessages.map((msg) => (
-              <Link
-                key={msg.id}
-                href={`/talk?conversation=${msg.conversation_id}`}
-                className="block bg-white dark:bg-slate-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-              >
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <span className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm rounded-full">
-                    {getTagLabel(msg.tag_type, msg.custom_label)}
-                  </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(msg.created_at).toLocaleDateString([], {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </span>
+            {/* Tell My Therapist */}
+            {therapistMemories.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                    Tell My Therapist
+                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">
+                      {therapistMemories.length}
+                    </span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <PrintButton />
+                    <ExportButton 
+                      data={therapistMemories}
+                      filename={`therapist-notes-${new Date().toISOString().split('T')[0]}`}
+                      title="Tell My Therapist"
+                    />
+                  </div>
                 </div>
-                
-                <p className="text-slate-900 dark:text-slate-50 mb-2 line-clamp-3">
-                  {msg.content}
-                </p>
-                
-                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                  <span className={`px-2 py-1 rounded ${
-                    msg.role === 'user'
-                      ? 'bg-slate-100 dark:bg-slate-700'
-                      : 'bg-blue-50 dark:bg-blue-900/20'
-                  }`}>
-                    {msg.role === 'user' ? 'You' : 'Passage'}
-                  </span>
-                  <span>→ View conversation</span>
+                {therapistMemories.map((memory) => (
+                  <Link
+                    key={memory.id}
+                    href={`/talk?conversation=${memory.conversation_id}`}
+                    className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                  >
+                    <p className="text-slate-900 dark:text-slate-50 text-sm mb-2">
+                      {memory.content}
+                    </p>
+                    <div className="text-xs text-slate-500">
+                      {new Date(memory.created_at).toLocaleDateString()}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* Remember This */}
+            {rememberMemories.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                    Remember This
+                    <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
+                      {rememberMemories.length}
+                    </span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <PrintButton />
+                    <ExportButton 
+                      data={rememberMemories}
+                      filename={`remember-this-${new Date().toISOString().split('T')[0]}`}
+                      title="Remember This"
+                    />
+                  </div>
                 </div>
-              </Link>
+                {rememberMemories.map((memory) => (
+                  <Link
+                    key={memory.id}
+                    href={`/talk?conversation=${memory.conversation_id}`}
+                    className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                  >
+                    <p className="text-slate-900 dark:text-slate-50 text-sm mb-2">
+                      {memory.content}
+                    </p>
+                    <div className="text-xs text-slate-500">
+                      {new Date(memory.created_at).toLocaleDateString()}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* Patterns to Watch */}
+            {patternMemories.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                    Patterns to Watch
+                    <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-xs font-medium rounded-full">
+                      {patternMemories.length}
+                    </span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <PrintButton />
+                    <ExportButton 
+                      data={patternMemories}
+                      filename={`patterns-to-watch-${new Date().toISOString().split('T')[0]}`}
+                      title="Patterns to Watch"
+                    />
+                  </div>
+                </div>
+                {patternMemories.map((memory) => (
+                  <Link
+                    key={memory.id}
+                    href={`/talk?conversation=${memory.conversation_id}`}
+                    className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                  >
+                    <p className="text-slate-900 dark:text-slate-50 text-sm mb-2">
+                      {memory.content}
+                    </p>
+                    <div className="text-xs text-slate-500">
+                      {new Date(memory.created_at).toLocaleDateString()}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* Custom Tags */}
+            {Object.entries(customMemories).map(([label, items]) => (
+              <div key={label} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                    {label}
+                    <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-medium rounded-full">
+                      {items.length}
+                    </span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <PrintButton />
+                    <ExportButton 
+                      data={items}
+                      filename={`${label.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`}
+                      title={label}
+                    />
+                  </div>
+                </div>
+                {items.map((memory) => (
+                  <Link
+                    key={memory.id}
+                    href={`/talk?conversation=${memory.conversation_id}`}
+                    className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                  >
+                    <p className="text-slate-900 dark:text-slate-50 text-sm mb-2">
+                      {memory.content}
+                    </p>
+                    <div className="text-xs text-slate-500">
+                      {new Date(memory.created_at).toLocaleDateString()}
+                    </div>
+                  </Link>
+                ))}
+              </div>
             ))}
           </div>
         )}

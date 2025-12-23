@@ -29,3 +29,91 @@ body {
     text-wrap: balance;
   }
 }
+
+/* Print Styles */
+@media print {
+  /* Hide navigation and UI elements */
+  nav,
+  header nav,
+  .no-print,
+  [data-print="hide"],
+  button:not(.print-keep),
+  .bg-slate-100,
+  .bg-slate-800 {
+    display: none !important;
+  }
+
+  /* Hide tab navigation */
+  .grid.grid-cols-3 {
+    display: none !important;
+  }
+
+  /* Reset colors for print */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Format cards cleanly */
+  .bg-white,
+  .dark\\:bg-slate-800,
+  .rounded-lg {
+    background: white !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin-bottom: 1rem;
+  }
+
+  /* Readable fonts */
+  body,
+  p,
+  span,
+  div {
+    font-family: Georgia, 'Times New Roman', serif !important;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+    color: black !important;
+  }
+
+  /* Headers */
+  h1 {
+    font-size: 24pt !important;
+    margin-bottom: 12pt !important;
+    color: black !important;
+  }
+
+  h2, h3 {
+    font-size: 14pt !important;
+    margin-bottom: 8pt !important;
+    color: black !important;
+  }
+
+  /* Add page title */
+  .max-w-4xl::before {
+    content: "Your Journey - " attr(data-print-date);
+    display: block;
+    font-size: 10pt;
+    color: #666;
+    margin-bottom: 20pt;
+    padding-bottom: 10pt;
+    border-bottom: 1px solid #ccc;
+  }
+
+  /* Clean spacing */
+  .space-y-3 > *,
+  .space-y-4 > * {
+    margin-bottom: 1rem !important;
+  }
+
+  /* Avoid page breaks in cards */
+  .rounded-lg.shadow {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure links are visible */
+  a {
+    color: black !important;
+    text-decoration: underline !important;
+  }
+}

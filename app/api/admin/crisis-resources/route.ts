@@ -62,7 +62,7 @@ export async function PUT(request: Request) {
       )
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('crisis_resources')
       .update({
         country_code: country_code.toUpperCase(),
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('crisis_resources')
       .insert({
         country_code: country_code.toUpperCase(),

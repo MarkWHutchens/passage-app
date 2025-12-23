@@ -280,11 +280,8 @@ export default function PatternsPage() {
             </div>
           ) : (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 text-center">
-              <p className="text-slate-600 dark:text-slate-400 mb-2">
-                No patterns detected yet
-              </p>
-              <p className="text-slate-500 dark:text-slate-500 text-sm">
-                Click "Analyze My Conversations" above to find patterns in your conversations
+              <p className="text-slate-600 dark:text-slate-400">
+                Patterns emerge as you talk. After a few conversations, I'll start noticing themes.
               </p>
             </div>
           )}

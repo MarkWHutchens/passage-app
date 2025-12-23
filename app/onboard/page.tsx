@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { EntryPoint, Country } from '@/types'
+import { Flame, Heart, UserMinus, Leaf, Briefcase, Activity, ArrowRightLeft, HelpCircle } from 'lucide-react'
 
 const ENTRY_POINTS: { value: EntryPoint; label: string; description: string }[] = [
   { value: 'burnout', label: 'Burnout', description: 'Recovery from work-related exhaustion' },
@@ -47,6 +48,21 @@ export default function OnboardPage() {
   const [playingVoice, setPlayingVoice] = useState<Voice | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  const getEntryIcon = (entryValue: EntryPoint) => {
+    const iconProps = { size: 20, className: 'text-slate-600 dark:text-slate-400' }
+    switch (entryValue) {
+      case 'burnout': return <Flame {...iconProps} />
+      case 'grief': return <Heart {...iconProps} />
+      case 'divorce': return <UserMinus {...iconProps} />
+      case 'addiction': return <Leaf {...iconProps} />
+      case 'career': return <Briefcase {...iconProps} />
+      case 'illness': return <Activity {...iconProps} />
+      case 'transition': return <ArrowRightLeft {...iconProps} />
+      case 'other': return <HelpCircle {...iconProps} />
+      default: return null
+    }
+  }
 
   const handleEntryNext = () => {
     if (!selectedEntry) return
@@ -97,48 +113,88 @@ export default function OnboardPage() {
     }
   }
 
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut()
+      router.push('/auth/signin')
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
   const handleComplete = async () => {
     setLoading(true)
 
     try {
       const { data: { user } } = await supabase.auth.getUser()
       
-      if (user) {
-        console.log('=== SAVING PROFILE ===')
-        console.log('Name entered:', name)
-        console.log('Name to save:', name.trim() || null)
-        console.log('Entry point:', selectedEntry)
-        console.log('Country:', selectedCountry)
-        console.log('Voice:', selectedVoice)
-        console.log('User ID:', user.id)
-        
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ 
-            entry_point: selectedEntry,
-            name: name.trim() || null,
-            country: selectedCountry,
-            voice_preference: selectedVoice,
-            onboarding_complete: true
-          } as any)
-          .eq('id', user.id)
-        
-        console.log('Update result:', updateError ? 'Error' : 'Success')
-        console.log('===================')
-        
-        if (updateError) {
-          console.error('Error updating profile:', updateError)
-          setLoading(false)
-          return
-        }
+      if (!user) {
+        console.error('❌ No user found')
+        alert('Session expired. Please sign in again.')
+        setLoading(false)
+        return
       }
 
+      console.log('=== SAVING PROFILE ===')
+      console.log('Name entered:', name)
+      console.log('Name to save:', name.trim() || null)
+      console.log('Entry point:', selectedEntry)
+      console.log('Country:', selectedCountry)
+      console.log('Voice:', selectedVoice)
+      console.log('User ID:', user.id)
+      
+      const { data: updateData, error: updateError } = await (supabase as any)
+        .from('users')
+        .update({ 
+          entry_point: selectedEntry,
+          name: name.trim() || null,
+          country: selectedCountry,
+          voice_preference: selectedVoice,
+          onboarding_complete: true
+        })
+        .eq('id', user.id)
+        .select()
+      
+      console.log('Update result:', updateError ? 'Error' : 'Success')
+      console.log('Update data:', updateData)
+      console.log('Update error:', updateError)
+      
+      if (updateError) {
+        console.error('❌ Error updating profile:', updateError)
+        alert(`Failed to save profile: ${updateError.message}`)
+        setLoading(false)
+        return
+      }
+
+      console.log('✅ Profile saved successfully')
+      
+      // Verify the update was successful
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('users')
+        .select('onboarding_complete')
+        .eq('id', user.id)
+        .single() as any
+      
+      console.log('Verification check - onboarding_complete:', verifyData?.onboarding_complete)
+      
+      if (verifyError || !verifyData?.onboarding_complete) {
+        console.error('❌ Verification failed:', verifyError)
+        alert('Something went wrong. Please try again.')
+        setLoading(false)
+        return
+      }
+
+      console.log('✅ Verification successful, redirecting to /home')
+      console.log('===================')
+      
       // Wait a moment to ensure database update propagates
       await new Promise(resolve => setTimeout(resolve, 500))
       
       router.push('/home')
+      router.refresh() // Force a refresh to reload the layout
     } catch (error) {
-      console.error('Error saving profile:', error)
+      console.error('❌ Unexpected error:', error)
+      alert('An unexpected error occurred. Please try again.')
       setLoading(false)
     }
   }
@@ -146,6 +202,12 @@ export default function OnboardPage() {
   if (step === 'country') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+        <button
+          onClick={handleSignOut}
+          className="fixed top-4 right-4 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+        >
+          Sign out
+        </button>
         <div className="w-full max-w-md">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8">
             <button
@@ -194,6 +256,12 @@ export default function OnboardPage() {
   if (step === 'voice') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+        <button
+          onClick={handleSignOut}
+          className="fixed top-4 right-4 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+        >
+          Sign out
+        </button>
         <div className="w-full max-w-2xl">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8">
             <button
@@ -271,6 +339,12 @@ export default function OnboardPage() {
   if (step === 'name') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+        <button
+          onClick={handleSignOut}
+          className="fixed top-4 right-4 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+        >
+          Sign out
+        </button>
         <div className="w-full max-w-md">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8">
             <button
@@ -318,6 +392,12 @@ export default function OnboardPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+      <button
+        onClick={handleSignOut}
+        className="fixed top-4 right-4 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+      >
+        Sign out
+      </button>
       <div className="w-full max-w-3xl">
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8">
           <h1 className="text-3xl font-bold text-center mb-4 text-slate-900 dark:text-slate-50">
@@ -338,10 +418,13 @@ export default function OnboardPage() {
                     : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600'
                 }`}
               >
-                <div className="font-semibold text-slate-900 dark:text-slate-50 mb-1">
-                  {entry.label}
+                <div className="flex items-center gap-3 mb-2">
+                  {getEntryIcon(entry.value)}
+                  <div className="font-semibold text-slate-900 dark:text-slate-50">
+                    {entry.label}
+                  </div>
                 </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400">
+                <div className="text-sm text-slate-600 dark:text-slate-400 ml-8">
                   {entry.description}
                 </div>
               </button>

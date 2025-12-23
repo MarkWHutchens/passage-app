@@ -120,7 +120,10 @@ export async function POST(request: Request) {
     // Retrieve relevant context from Pinecone (RAG)
     let retrievedContext = ''
     try {
+      console.log('🔍 Attempting to retrieve context for user:', user.id)
       const contextResults = await retrieveContext(user.id, message, supabase, 5)
+      console.log(`📊 RAG query returned ${contextResults.length} results`)
+      
       if (contextResults.length > 0) {
         retrievedContext = contextResults
           .map((ctx, idx) => 
@@ -132,9 +135,12 @@ export async function POST(request: Request) {
         console.log(`Found ${contextResults.length} relevant past messages`)
         console.log(retrievedContext)
         console.log('============================')
+      } else {
+        console.log('ℹ️ No previous context found - this is likely a first conversation or no relevant history exists')
+        console.log('⚠️ Claude will be told this is a FIRST conversation with NO prior history')
       }
     } catch (error) {
-      console.error('Error retrieving context:', error)
+      console.error('❌ Error retrieving context:', error)
       // Continue without context if retrieval fails
     }
 

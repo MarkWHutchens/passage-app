@@ -9,6 +9,7 @@ export default function SignUpPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
@@ -62,9 +63,19 @@ export default function SignUpPage() {
           console.error('Error creating user profile:', profileError)
         }
 
-        // Show email confirmation screen
-        setEmailSent(true)
-        setLoading(false)
+        // Check if user has immediate session (email confirmation disabled)
+        const { data: sessionData } = await supabase.auth.getSession()
+        
+        if (sessionData.session) {
+          // Email confirmation is disabled, user is logged in immediately
+          console.log('✅ Session exists immediately - redirecting to onboarding')
+          router.push('/onboard')
+        } else {
+          // Email confirmation is required
+          console.log('📧 No session - showing email confirmation screen')
+          setEmailSent(true)
+          setLoading(false)
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred')
@@ -170,9 +181,29 @@ export default function SignUpPage() {
               />
             </div>
 
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-1"
+                required
+              />
+              <span className="text-slate-600 dark:text-slate-400">
+                I agree to the{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300">
+                  Privacy Policy
+                </a>
+                {' '}and{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline hover:text-blue-700 dark:hover:text-blue-300">
+                  Terms of Service
+                </a>
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={!agreedToTerms || loading || !email || !password}
               className="w-full py-3 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-50 dark:text-slate-900"
             >
               {loading ? 'Creating account...' : 'Sign Up'}

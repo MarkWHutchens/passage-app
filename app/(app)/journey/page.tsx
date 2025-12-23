@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import PrintButton from '@/components/journey/PrintButton'
+import ExportButton from '@/components/journey/ExportButton'
+import MemorySection from '@/components/journey/MemorySection'
+import { getTaggedMessages, getCustomTags, updateMemoryTag, removeMemoryTag } from '@/lib/memories/server-actions'
 
 export default function JourneyPage() {
   const [activeTab, setActiveTab] = useState<'patterns' | 'insights' | 'memories'>('patterns')
@@ -79,12 +83,13 @@ export default function JourneyPage() {
       console.log('📊 Loading tracking data for user:', user.id)
       const { data: profile, error: profileError } = await supabase
         .from('users')
-        .select('conversation_count_at_last_analysis, last_journey_visit, last_insight_generation, last_pattern_analysis')
+        .select('conversation_count_at_last_analysis, last_journey_visit, last_insight_generation, last_pattern_analysis, has_new_patterns')
         .eq('id', user.id)
         .single() as any
 
       console.log('Profile data received:', profile)
       console.log('Profile error:', profileError)
+      console.log('has_new_patterns BEFORE clearing:', profile?.has_new_patterns)
       console.log('conversation_count_at_last_analysis value:', profile?.conversation_count_at_last_analysis)
 
       const analysisCount = profile?.conversation_count_at_last_analysis || 0
@@ -103,11 +108,21 @@ export default function JourneyPage() {
 
       setConversationCount(count || 0)
 
-      // Update last visit
-      await (supabase
+      // Update last visit and clear red dot
+      console.log('🔄 Attempting to clear has_new_patterns...')
+      const { data: updateResult, error: updateError } = await (supabase as any)
         .from('users')
-        .update({ last_journey_visit: new Date().toISOString() } as any)
-        .eq('id', user.id) as any)
+        .update({ 
+          last_journey_visit: new Date().toISOString(),
+          has_new_patterns: false
+        })
+        .eq('id', user.id)
+      
+      if (updateError) {
+        console.error('❌ Failed to update has_new_patterns:', updateError)
+      } else {
+        console.log('✅ Successfully cleared has_new_patterns')
+      }
 
     } catch (error) {
       console.error('Error loading data:', error)
@@ -159,10 +174,10 @@ export default function JourneyPage() {
         const { data: { user } } = await supabase.auth.getUser()
         if (user) {
           // Update last_insight_generation timestamp
-          await (supabase
+          await (supabase as any)
             .from('users')
-            .update({ last_insight_generation: new Date().toISOString() } as any)
-            .eq('id', user.id) as any)
+            .update({ last_insight_generation: new Date().toISOString() })
+            .eq('id', user.id)
         }
 
         // Reload data
@@ -290,6 +305,18 @@ export default function JourneyPage() {
                 )}
               </div>
 
+              {/* Print/Export Buttons */}
+              {patterns.length > 0 && (
+                <div className="flex items-center justify-end gap-2">
+                  <PrintButton />
+                  <ExportButton 
+                    data={patterns}
+                    filename={`patterns-${new Date().toISOString().split('T')[0]}`}
+                    title="My Patterns"
+                  />
+                </div>
+              )}
+
               {/* Patterns List */}
               {patterns.length > 0 ? (
                 <div className="space-y-3">
@@ -320,7 +347,7 @@ export default function JourneyPage() {
               ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 text-center">
                   <p className="text-slate-600 dark:text-slate-400 mb-4">
-                    No patterns detected yet
+                    Patterns emerge as you talk. After a few conversations, I'll start noticing themes.
                   </p>
                   <button
                     onClick={handleAnalyze}
@@ -372,6 +399,18 @@ export default function JourneyPage() {
                 </div>
               )}
 
+              {/* Print/Export Buttons */}
+              {insights.length > 0 && (
+                <div className="flex items-center justify-end gap-2">
+                  <PrintButton />
+                  <ExportButton 
+                    data={insights}
+                    filename={`insights-${new Date().toISOString().split('T')[0]}`}
+                    title="My Insights"
+                  />
+                </div>
+              )}
+
               {insights.length > 0 ? (
                 insights.map((insight) => (
                   <div
@@ -394,7 +433,7 @@ export default function JourneyPage() {
               ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 text-center">
                   <p className="text-slate-600 dark:text-slate-400">
-                    No insights yet. Patterns are analyzed first.
+                    Insights are generated from your patterns. Keep talking, and I'll share what I notice.
                   </p>
                 </div>
               )}
@@ -402,36 +441,190 @@ export default function JourneyPage() {
           )}
 
           {activeTab === 'memories' && (
-            <div className="space-y-4">
-              {memories.length > 0 ? (
-                memories.map((memory) => (
-                  <Link
-                    key={memory.id}
-                    href={`/talk?conversation=${memory.conversation_id}`}
-                    className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <span className="text-xs text-blue-600 dark:text-blue-400 capitalize">
-                        {memory.tag_type?.replace('_', ' ')}
-                      </span>
-                      {isNew(memory.tag_created_at) && (
-                        <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
-                          New
-                        </span>
-                      )}
+            <div className="space-y-6">
+              {(() => {
+                // Group memories by tag type
+                const therapistMemories = memories.filter(m => m.tag_type === 'therapist')
+                const rememberMemories = memories.filter(m => m.tag_type === 'remind')
+                const patternMemories = memories.filter(m => m.tag_type === 'pattern')
+                const customMemories: { [key: string]: any[] } = {}
+                memories.forEach(m => {
+                  if (m.tag_type === 'custom' && m.custom_label) {
+                    if (!customMemories[m.custom_label]) {
+                      customMemories[m.custom_label] = []
+                    }
+                    customMemories[m.custom_label].push(m)
+                  }
+                })
+
+                const hasMemories = memories.length > 0
+
+                if (!hasMemories) {
+                  return (
+                    <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 text-center">
+                      <p className="text-slate-600 dark:text-slate-400">
+                        When something feels important, tag it. Your saved moments will appear here.
+                      </p>
                     </div>
-                    <p className="text-slate-900 dark:text-slate-50 text-sm line-clamp-2">
-                      {memory.content}
-                    </p>
-                  </Link>
-                ))
-              ) : (
-                <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 text-center">
-                  <p className="text-slate-600 dark:text-slate-400">
-                    No tagged memories yet
-                  </p>
-                </div>
-              )}
+                  )
+                }
+
+                return (
+                  <>
+                    {/* Tell My Therapist */}
+                    {therapistMemories.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                            Tell My Therapist
+                            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full">
+                              {therapistMemories.length}
+                            </span>
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <PrintButton />
+                            <ExportButton 
+                              data={therapistMemories}
+                              filename={`therapist-notes-${new Date().toISOString().split('T')[0]}`}
+                              title="Tell My Therapist"
+                            />
+                          </div>
+                        </div>
+                        {therapistMemories.map((memory) => (
+                          <Link
+                            key={memory.id}
+                            href={`/talk?conversation=${memory.conversation_id}`}
+                            className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                          >
+                            {isNew(memory.tag_created_at) && (
+                              <span className="inline-block text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full mb-2">
+                                New
+                              </span>
+                            )}
+                            <p className="text-slate-900 dark:text-slate-50 text-sm">
+                              {memory.content}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Remember This */}
+                    {rememberMemories.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                            Remember This
+                            <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
+                              {rememberMemories.length}
+                            </span>
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <PrintButton />
+                            <ExportButton 
+                              data={rememberMemories}
+                              filename={`remember-this-${new Date().toISOString().split('T')[0]}`}
+                              title="Remember This"
+                            />
+                          </div>
+                        </div>
+                        {rememberMemories.map((memory) => (
+                          <Link
+                            key={memory.id}
+                            href={`/talk?conversation=${memory.conversation_id}`}
+                            className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                          >
+                            {isNew(memory.tag_created_at) && (
+                              <span className="inline-block text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full mb-2">
+                                New
+                              </span>
+                            )}
+                            <p className="text-slate-900 dark:text-slate-50 text-sm">
+                              {memory.content}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Patterns to Watch */}
+                    {patternMemories.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                            Patterns to Watch
+                            <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-xs font-medium rounded-full">
+                              {patternMemories.length}
+                            </span>
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <PrintButton />
+                            <ExportButton 
+                              data={patternMemories}
+                              filename={`patterns-to-watch-${new Date().toISOString().split('T')[0]}`}
+                              title="Patterns to Watch"
+                            />
+                          </div>
+                        </div>
+                        {patternMemories.map((memory) => (
+                          <Link
+                            key={memory.id}
+                            href={`/talk?conversation=${memory.conversation_id}`}
+                            className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                          >
+                            {isNew(memory.tag_created_at) && (
+                              <span className="inline-block text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full mb-2">
+                                New
+                              </span>
+                            )}
+                            <p className="text-slate-900 dark:text-slate-50 text-sm">
+                              {memory.content}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Custom Tags */}
+                    {Object.entries(customMemories).map(([label, items]) => (
+                      <div key={label} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+                            {label}
+                            <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-xs font-medium rounded-full">
+                              {items.length}
+                            </span>
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <PrintButton />
+                            <ExportButton 
+                              data={items}
+                              filename={`${label.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`}
+                              title={label}
+                            />
+                          </div>
+                        </div>
+                        {items.map((memory) => (
+                          <Link
+                            key={memory.id}
+                            href={`/talk?conversation=${memory.conversation_id}`}
+                            className="block bg-white dark:bg-slate-800 rounded-lg shadow p-4 hover:shadow-lg transition"
+                          >
+                            {isNew(memory.tag_created_at) && (
+                              <span className="inline-block text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full mb-2">
+                                New
+                              </span>
+                            )}
+                            <p className="text-slate-900 dark:text-slate-50 text-sm">
+                              {memory.content}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    ))}
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>

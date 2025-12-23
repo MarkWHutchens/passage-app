@@ -93,12 +93,12 @@ export async function POST(request: NextRequest) {
     const insightsData = await insightsResponse.json()
 
     // Update tracking field and set has_new_patterns flag
-    await supabase
+    await (supabase as any)
       .from('users')
       .update({
         last_insight_generation: new Date().toISOString(),
         has_new_patterns: true,
-      } as any)
+      })
       .eq('id', user.id)
 
     return NextResponse.json({

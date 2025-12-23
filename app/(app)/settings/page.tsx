@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { EntryPoint, Country } from '@/types'
+import { exportAllUserData } from '@/lib/actions/export'
+import { MessageCircle } from 'lucide-react'
 
 type Voice = 'alloy' | 'echo' | 'fable' | 'nova' | 'onyx' | 'shimmer'
 
@@ -60,6 +62,7 @@ export default function SettingsPage() {
   const [showClearMemoriesModal, setShowClearMemoriesModal] = useState(false)
   const [showClearHistoryModal, setShowClearHistoryModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadUserSettings()
@@ -97,13 +100,13 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('users')
         .update({
           name: name.trim() || null,
           country,
           entry_point: entryPoint,
-        } as any)
+        })
         .eq('id', user.id)
 
       if (error) throw error
@@ -122,9 +125,9 @@ export default function SettingsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      await supabase
+      await (supabase as any)
         .from('users')
-        .update({ voice_preference: voice } as any)
+        .update({ voice_preference: voice })
         .eq('id', user.id)
     } catch (error) {
       console.error('Error saving voice:', error)
@@ -229,35 +232,9 @@ export default function SettingsPage() {
 
       const jsonString = JSON.stringify(exportDataObj, null, 2)
       const blob = new Blob([jsonString], { type: 'application/json' })
-      const fileName = `passage-data-export-${new Date().toISOString().split('T')[0]}.json`
+      const fileName = `passage-backup-${new Date().toISOString().split('T')[0]}.json`
 
-      // Try Web Share API first (for iOS/mobile)
-      if (navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: 'application/json' })
-        
-        if (navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: 'Passage Data Export',
-              text: 'Your Passage app data export',
-            })
-            // Successfully shared or user completed the share
-            return
-          } catch (shareError: any) {
-            // If user cancelled the share sheet, do nothing
-            if (shareError.name === 'AbortError') {
-              console.log('User cancelled share')
-              return
-            }
-            // For other errors, log but don't fall back
-            console.error('Share failed:', shareError)
-            return
-          }
-        }
-      }
-
-      // Fallback: regular download (only if Web Share API not supported)
+      // Direct download - no share sheet
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -545,6 +522,19 @@ export default function SettingsPage() {
                 Clear Conversation History
               </button>
             </div>
+          </div>
+
+          {/* Contact Support */}
+          <div>
+            <a
+              href="https://tally.so/r/Ek5vXq"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-600"
+            >
+              <MessageCircle className="w-5 h-5" />
+              Contact Support & Feedback
+            </a>
           </div>
 
           {/* Sign Out */}

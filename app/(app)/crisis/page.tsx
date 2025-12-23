@@ -143,8 +143,7 @@ export default function CrisisPage() {
       
       // Update user country
       try {
-        // @ts-ignore - Supabase type limitation
-        await supabase.from('users').update({ country: countryValue }).eq('id', user.id)
+        await (supabase as any).from('users').update({ country: countryValue }).eq('id', user.id)
       } catch (error) {
         console.error('Error updating country:', error)
       }

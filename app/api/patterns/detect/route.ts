@@ -166,14 +166,14 @@ Format as JSON array of maximum 10 patterns.`,
 
       if (existingPattern) {
         console.log(`   ♻️  Updating existing pattern (ID: ${existingPattern.id})`)
-        const { error: updateError } = await supabase
+        const { error: updateError } = await (supabase as any)
           .from('patterns')
           .update({
             occurrence_count: pattern.count || existingPattern.occurrence_count + 1,
             evidence_message_ids: evidenceIds,
             last_seen_at: new Date().toISOString(),
             is_active: true
-          } as any)
+          })
           .eq('id', existingPattern.id)
         
         if (updateError) {
@@ -185,7 +185,7 @@ Format as JSON array of maximum 10 patterns.`,
         storedPatterns.push({ ...pattern, id: existingPattern.id })
       } else {
         console.log('   ➕ Creating new pattern')
-        const { data: newPattern, error: insertError } = await supabase
+        const { data: newPattern, error: insertError } = await (supabase as any)
           .from('patterns')
           .insert({
             user_id: user.id,
@@ -194,9 +194,9 @@ Format as JSON array of maximum 10 patterns.`,
             evidence_message_ids: evidenceIds,
             occurrence_count: pattern.count || 1,
             is_active: true
-          } as any)
+          })
           .select()
-          .single() as any
+          .single()
 
         if (insertError) {
           console.log('   ❌ Error inserting pattern:', insertError)
@@ -215,14 +215,14 @@ Format as JSON array of maximum 10 patterns.`,
     console.log(`   Conversation count: ${conversationCount}`)
     console.log(`   Timestamp: ${new Date().toISOString()}`)
     
-    const { data: updateResult, error: trackingError } = await (supabase
+    const { data: updateResult, error: trackingError } = await (supabase as any)
       .from('users')
       .update({ 
         last_pattern_analysis: new Date().toISOString(),
         conversation_count_at_last_analysis: conversationCount
-      } as any)
+      })
       .eq('id', user.id)
-      .select() as any)
+      .select()
     
     if (trackingError) {
       console.log('❌ Error updating tracking data:', trackingError)

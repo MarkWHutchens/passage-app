@@ -29,6 +29,7 @@ export default function TalkPage() {
   
   // Use ref to track actual conversation ID across renders
   const conversationIdRef = useRef(conversationId)
+  const previousConversationId = useRef<string | null>(null)
   
   // List view state
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -45,7 +46,7 @@ export default function TalkPage() {
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false)
   const [entryPoint, setEntryPoint] = useState<string>('other')
   const [showEntryPointSelector, setShowEntryPointSelector] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const voiceEnabledRef = useRef(true)
   const supabase = createClient()
@@ -61,10 +62,26 @@ export default function TalkPage() {
   }, [])
 
   useEffect(() => {
-    if (conversationId) {
+    // Skip if we just transitioned from 'new' to real ID - messages already in state
+    if (previousConversationId.current === 'new' && conversationId && conversationId !== 'new') {
+      console.log('🔄 Transitioned from new to real ID - keeping existing messages')
+      previousConversationId.current = conversationId
+      return // Don't reload, messages are already there
+    }
+    
+    previousConversationId.current = conversationId
+    
+    if (conversationId && conversationId !== 'new') {
+      // Load existing conversation
       loadConversation(conversationId)
       loadUserProfile()
+    } else if (conversationId === 'new') {
+      // New conversation - start fresh
+      setMessages([])
+      setLoadingHistory(false)
+      loadUserProfile()
     } else {
+      // No conversation ID - show list
       loadConversationList()
     }
   }, [conversationId])
@@ -146,6 +163,19 @@ export default function TalkPage() {
     }
   }
 
+  // Debug ref attachment
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current
+      const computedStyle = window.getComputedStyle(container)
+      console.log('🔍 DEBUG - Ref element:', container)
+      console.log('🔍 DEBUG - Parent:', container.parentElement)
+      console.log('🔍 DEBUG - Overflow-Y:', computedStyle.overflowY)
+      console.log('🔍 DEBUG - Height:', computedStyle.height)
+      console.log('🔍 DEBUG - Max-height:', computedStyle.maxHeight)
+    }
+  }, [conversationId])
+
   useEffect(() => {
     if (conversationId && messages.length > 0) {
       // Use requestAnimationFrame to ensure DOM has updated
@@ -156,12 +186,28 @@ export default function TalkPage() {
   }, [messages])
 
   const scrollToBottom = () => {
-    // Scroll with smooth behavior and ensure the element is in view
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: 'smooth',
-      block: 'end',
-      inline: 'nearest'
-    })
+    // Use setTimeout to ensure DOM has fully updated
+    setTimeout(() => {
+      const container = messagesContainerRef.current
+      if (container) {
+        // Find the last user message and scroll it into view at the top
+        const userMessages = container.querySelectorAll('[data-role="user"]')
+        console.log('📜 Found', userMessages.length, 'user messages')
+        
+        if (userMessages.length > 0) {
+          const lastUserMessage = userMessages[userMessages.length - 1] as HTMLElement
+          console.log('📜 Scrolling to last user message, block: start')
+          lastUserMessage.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+        } else {
+          // Fallback: scroll to bottom if no user messages found
+          console.log('📜 No user messages found, scrolling to bottom')
+          const scrollPosition = container.scrollHeight - container.clientHeight
+          container.scrollTop = scrollPosition
+        }
+      } else {
+        console.log('⚠️ messagesContainerRef.current is null')
+      }
+    }, 150)
   }
 
   const toggleVoice = async () => {
@@ -171,9 +217,9 @@ export default function TalkPage() {
     // Save to database
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase
+      await (supabase as any)
         .from('users')
-        .update({ voice_muted: !newValue } as any)
+        .update({ voice_muted: !newValue })
         .eq('id', user.id)
     }
     
@@ -192,16 +238,16 @@ export default function TalkPage() {
     // Save to database and update conversation
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase
+      await (supabase as any)
         .from('users')
-        .update({ entry_point: newEntryPoint } as any)
+        .update({ entry_point: newEntryPoint })
         .eq('id', user.id)
       
       // Also update the current conversation if it exists
       if (conversationId && conversationId !== 'new') {
-        await supabase
+        await (supabase as any)
           .from('conversations')
-          .update({ entry_point: newEntryPoint } as any)
+          .update({ entry_point: newEntryPoint })
           .eq('id', conversationId)
       }
     }
@@ -526,11 +572,8 @@ export default function TalkPage() {
             </div>
           ) : conversations.length === 0 ? (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-8 text-center">
-              <p className="text-slate-600 dark:text-slate-400 mb-2">
-                No conversations yet
-              </p>
-              <p className="text-slate-500 dark:text-slate-500 text-sm">
-                Start your first conversation with Passage
+              <p className="text-slate-600 dark:text-slate-400">
+                Your conversations will appear here. Ready to start talking?
               </p>
             </div>
           ) : (
@@ -652,7 +695,14 @@ export default function TalkPage() {
       )}
 
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4" style={{ paddingBottom: '440px' }}>
+      <div 
+        ref={messagesContainerRef} 
+        className="overflow-y-auto p-4" 
+        style={{ 
+          height: 'calc(100vh - 180px)',
+          paddingBottom: '440px' 
+        }}
+      >
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.length === 0 ? (
             <div className="text-center py-12">
@@ -667,7 +717,8 @@ export default function TalkPage() {
             messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                data-role={msg.role}
+                className={`flex scroll-mt-[140px] ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
                   className={`max-w-[80%] md:max-w-[70%] rounded-lg px-4 py-3 ${
@@ -753,7 +804,6 @@ export default function TalkPage() {
               </div>
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
